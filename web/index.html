@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="نظام الأميرة لنقاط البيع">
+
+  <!-- Force clear stale service worker cache on load -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var i = 0; i < registrations.length; i++) {
+          registrations[i].unregister();
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (var i = 0; i < names.length; i++) {
+          caches.delete(names[i]);
+        }
+      });
+    }
+  </script>
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="الأميرة POS">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, user-scalable=yes">
+
+  <title>الأميرة لنقاط البيع</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Camera Barcode Scanner & Zoom Script -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    window.currentZoomScale = 1.0;
+
+    window.printRawHtml = function(htmlContent) {
+      try {
+        var oldFrame = document.getElementById('__hayapos_print_frame__');
+        if (oldFrame && oldFrame.parentNode) {
+          oldFrame.parentNode.removeChild(oldFrame);
+        }
+
+        var iframe = document.createElement('iframe');
+        iframe.id = '__hayapos_print_frame__';
+        iframe.name = '__hayapos_print_frame__';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '10px';
+        iframe.style.height = '10px';
+        iframe.style.opacity = '0.01';
+        iframe.style.border = 'none';
+        iframe.style.zIndex = '-999';
+
+        document.body.appendChild(iframe);
+
+        var frameDoc = iframe.contentWindow || iframe.contentDocument;
+        if (frameDoc.document) frameDoc = frameDoc.document;
+
+        frameDoc.open();
+        frameDoc.write(htmlContent);
+        frameDoc.close();
+
+        var printed = false;
+        function triggerPrint() {
+          if (printed) return;
+          printed = true;
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          } catch (err) {
+            console.error('Iframe print error:', err);
+            var win = window.open('', '_blank', 'width=750,height=650');
+            if (win) {
+              win.document.open();
+              win.document.write(htmlContent);
+              win.document.close();
+              win.focus();
+              setTimeout(function() { win.print(); }, 250);
+            }
+          }
+        }
+
+        iframe.onload = function() {
+          setTimeout(triggerPrint, 150);
+        };
+        setTimeout(triggerPrint, 300);
+      } catch (e) {
+        console.error('printRawHtml fatal error:', e);
+        var win = window.open('', '_blank', 'width=750,height=650');
+        if (win) {
+          win.document.open();
+          win.document.write(htmlContent);
+          win.document.close();
+          win.focus();
+          setTimeout(function() { win.print(); }, 250);
+        }
+      }
+    };
+
+    window.setAppZoom = function(scale) {
+      window.currentZoomScale = scale;
+      document.body.style.zoom = scale;
+      var pane = document.querySelector('flt-glass-pane');
+      if (pane) {
+        pane.style.transformOrigin = '0 0';
+        pane.style.transform = 'scale(' + scale + ')';
+        pane.style.width = (100 / scale) + '%';
+        pane.style.height = (100 / scale) + '%';
+      }
+    };
+
+    window.getAppZoom = function() {
+      return window.currentZoomScale || 1.0;
+    };
+
+    window.openBarcodeScanner = function(callback) {
+      if (document.getElementById('barcode-modal')) return;
+
+      var modal = document.createElement('div');
+      modal.id = 'barcode-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.96);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;direction:rtl;font-family:sans-serif;box-sizing:border-box;';
+
+      var container = document.createElement('div');
+      container.style.cssText = 'background:#1e293b;border-radius:16px;padding:20px;width:100%;max-width:480px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;position:relative;border:1px solid #334155;box-sizing:border-box;';
+
+      var closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '✕ إغلاق';
+      closeBtn.style.cssText = 'position:absolute;top:12px;left:12px;background:#ef4444;color:white;border:none;padding:6px 14px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;z-index:10;';
+
+      var title = document.createElement('h3');
+      title.innerText = '📷 كاشف الباركود عبر الكاميرا';
+      title.style.cssText = 'color:white;margin:0 0 16px 0;font-size:18px;text-align:center;';
+
+      var readerDiv = document.createElement('div');
+      readerDiv.id = 'reader';
+      readerDiv.style.cssText = 'width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:220px;display:flex;align-items:center;justify-content:center;color:#fff;';
+
+      var statusText = document.createElement('p');
+      statusText.innerText = 'جاري تحضير الكاميرا...';
+      statusText.style.cssText = 'color:#94a3b8;margin:12px 0;font-size:13px;text-align:center;line-height:1.5;';
+
+      // Photo Snap Input Button (Works on ALL HTTP/HTTPS networks & devices!)
+      var photoInput = document.createElement('input');
+      photoInput.type = 'file';
+      photoInput.accept = 'image/*';
+      photoInput.capture = 'environment';
+      photoInput.style.display = 'none';
+
+      var photoBtn = document.createElement('button');
+      photoBtn.innerHTML = '📷 تصوير الباركود مباشرة بالعدسة';
+      photoBtn.style.cssText = 'background:#0284c7;color:white;border:none;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;margin-top:8px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);';
+      photoBtn.onclick = function() { photoInput.click(); };
+
+      photoInput.onchange = function(e) {
+        if (e.target.files && e.target.files.length > 0) {
+          var imageFile = e.target.files[0];
+          statusText.innerText = 'جاري تحليل صورة الباركود...';
+          statusText.style.color = '#38bdf8';
+          
+          var html5Qrcode = new Html5Qrcode("reader");
+          html5Qrcode.scanFileV2(imageFile, true)
+            .then(function(scanResult) {
+              stopAndClose();
+              if (callback) callback(scanResult.decodedText);
+            })
+            .catch(function(err) {
+              statusText.innerText = 'لم يتم التعرف على باركود واضح في الصورة، يرجى إعادة المحاولة من مسافة أقرب.';
+              statusText.style.color = '#f87171';
+            });
+        }
+      };
+
+      container.appendChild(closeBtn);
+      container.appendChild(title);
+      container.appendChild(readerDiv);
+      container.appendChild(statusText);
+      container.appendChild(photoBtn);
+      container.appendChild(photoInput);
+      modal.appendChild(container);
+      document.body.appendChild(modal);
+
+      var html5QrcodeScanner = null;
+
+      function stopAndClose() {
+        if (html5QrcodeScanner) {
+          try {
+            html5QrcodeScanner.stop().then(function() {
+              html5QrcodeScanner.clear();
+              if (modal.parentNode) modal.parentNode.removeChild(modal);
+            }).catch(function() {
+              if (modal.parentNode) modal.parentNode.removeChild(modal);
+            });
+          } catch(e) {
+            if (modal.parentNode) modal.parentNode.removeChild(modal);
+          }
+        } else {
+          if (modal.parentNode) modal.parentNode.removeChild(modal);
+        }
+      }
+
+      closeBtn.onclick = stopAndClose;
+
+      function startScanning() {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            var config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            
+            html5QrcodeScanner.start(
+              { facingMode: "environment" },
+              config,
+              function(decodedText, decodedResult) {
+                stopAndClose();
+                if (callback) callback(decodedText);
+              },
+              function(errorMessage) {
+                // ignore frame errors
+              }
+            ).catch(function(err) {
+              statusText.innerHTML = 'يمكنك استخدام خيار <b>"تصوير الباركود مباشرة بالعدسة"</b> أدناه لالتقاط صورة الباركود فوراً:';
+              statusText.style.color = '#fbbf24';
+            });
+          } catch(e) {
+            statusText.innerHTML = 'اضغط على زر <b>"تصوير الباركود مباشرة بالعدسة"</b> أدناه لالتقاط صورة للباركود:';
+            statusText.style.color = '#fbbf24';
+          }
+        } else {
+          statusText.innerHTML = 'المتصفح يتطلب تصوير الباركود بالعدسة عبر الشبكة، اضغط الزر الأزرق أدناه لالتقاط الصورة:';
+          statusText.style.color = '#fbbf24';
+        }
+      }
+
+      if (typeof Html5Qrcode === "undefined") {
+        var script = document.createElement('script');
+        script.src = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
+        script.onload = startScanning;
+        script.onerror = function() {
+          statusText.innerText = "تعذر تحميل مكتبة الكاميرا، يرجى التاكد من الاتصال بالإنترنت.";
+        };
+        document.head.appendChild(script);
+      } else {
+        startScanning();
+      }
+    };
+  </script>
+</head>
+<body>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

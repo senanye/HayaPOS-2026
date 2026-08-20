@@ -1,0 +1,16 @@
+{
+  "name": "haya-pos-whatsapp-service",
+  "version": "1.0.0",
+  "description": "Haya POS Automated WhatsApp Engine Service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.12",
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "qrcode": "^1.5.4",
+    "pino": "^9.6.0"
+  }
+}
