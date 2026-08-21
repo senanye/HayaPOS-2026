@@ -293,6 +293,22 @@ def ensure_columns_exist(cursor):
         except Exception as ex:
             print(f"Migration check error for {tbl}: {ex}")
 
+    # Backfill fldAccID in tblExpenses from tblExpensesList if fldAccID is 0 or null
+    try:
+        cursor.execute("""
+        IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[tblExpenses]') AND type in (N'U'))
+           AND EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[tblExpensesList]') AND type in (N'U'))
+        BEGIN
+            UPDATE e
+            SET e.fldAccID = el.fldAccID
+            FROM tblExpenses e
+            INNER JOIN tblExpensesList el ON e.fldExpensesID = el.fldID
+            WHERE (e.fldAccID IS NULL OR e.fldAccID = 0) AND el.fldAccID IS NOT NULL AND el.fldAccID > 0
+        END
+        """)
+    except Exception as ex:
+        pass
+
 # --- Data Models (Pydantic) ---
 
 class LoginRequest(BaseModel):
@@ -391,6 +407,7 @@ class BondItemDetail(BaseModel):
     expensesId: int
     amount: float
     note: Optional[str] = ""
+    accountId: Optional[int] = 0
 
 class BondRequest(BaseModel):
     expensesId: Optional[int] = 0
@@ -648,6 +665,26 @@ def init_sqlite_branches_db():
         exp_cols = [row[1].lower() for row in cursor.fetchall()]
         if "fldaccid" not in exp_cols:
             cursor.execute("ALTER TABLE tblExpensesList ADD COLUMN fldAccID INTEGER DEFAULT 0")
+            conn.commit()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tblExpenses (
+                fldID INTEGER PRIMARY KEY AUTOINCREMENT,
+                fldExpensesID INTEGER,
+                fldAmount REAL,
+                fldNote TEXT,
+                fldTransID INTEGER,
+                fldDate TEXT,
+                fldTransNumber REAL,
+                fldPointNO INTEGER,
+                fldAccID INTEGER DEFAULT 0,
+                fldIsSync INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("PRAGMA table_info(tblExpenses)")
+        te_cols = [row[1].lower() for row in cursor.fetchall()]
+        if "fldaccid" not in te_cols:
+            cursor.execute("ALTER TABLE tblExpenses ADD COLUMN fldAccID INTEGER DEFAULT 0")
             conn.commit()
 
         conn.close()
@@ -2871,11 +2908,24 @@ def create_bond(req: BondRequest):
         if req.details and len(req.details) > 0:
             items_list = req.details
         else:
-            items_list = [BondItemDetail(expensesId=req.expensesId or 0, amount=req.amount or 0.0, note=req.note or "")]
+            items_list = [BondItemDetail(expensesId=req.expensesId or 0, amount=req.amount or 0.0, note=req.note or "", accountId=req.accountId or 0)]
+
+        # Account Lookup from tblExpensesList
+        acc_lookup_map = {}
+        try:
+            cursor.execute("SELECT fldID, fldAccID FROM tblExpensesList")
+            for arow in cursor.fetchall():
+                if arow[0] is not None and arow[1] is not None:
+                    acc_lookup_map[int(arow[0])] = int(arow[1])
+        except Exception:
+            pass
 
         first_expenses_id = items_list[0].expensesId if items_list else account_id
-        if account_id == 0:
-            account_id = first_expenses_id
+        if account_id == 0 or account_id == first_expenses_id:
+            if first_expenses_id in acc_lookup_map and acc_lookup_map[first_expenses_id] > 0:
+                account_id = acc_lookup_map[first_expenses_id]
+            elif first_expenses_id > 0:
+                account_id = first_expenses_id
 
         # 1. Generate Next Transaction Number for Main
         try:
@@ -2908,7 +2958,7 @@ def create_bond(req: BondRequest):
             (req.date, main_desc, next_trans_num, user_id, point_no, 1, trans_type_id, first_expenses_id, money_id, account_id)
         )
 
-        # 3. Insert each item into tblExpenses
+        # 3. Insert each item into tblExpenses with fldAccID
         first_generated_exp_id = 0
         for idx, item in enumerate(items_list):
             actual_amount = -abs(item.amount) if req.isReceipt else abs(item.amount)
@@ -2917,18 +2967,36 @@ def create_bond(req: BondRequest):
             if idx == 0:
                 first_generated_exp_id = next_exp_id
 
+            # Determine item-level fldAccID
+            item_acc_id = 0
+            if item.accountId and int(item.accountId) > 0:
+                item_acc_id = int(item.accountId)
+            elif item.expensesId in acc_lookup_map and acc_lookup_map[item.expensesId] > 0:
+                item_acc_id = acc_lookup_map[item.expensesId]
+            elif account_id > 0:
+                item_acc_id = account_id
+            else:
+                item_acc_id = int(item.expensesId or 0)
+
             try:
                 cursor.execute(
-                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldID) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no, next_exp_id)
+                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldID, fldAccID) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no, next_exp_id, item_acc_id)
                 )
             except Exception:
-                cursor.execute(
-                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no)
-                )
+                try:
+                    cursor.execute(
+                        "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no, item_acc_id)
+                    )
+                except Exception:
+                    cursor.execute(
+                        "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no)
+                    )
                 cursor.execute("SELECT @@IDENTITY")
                 val = cursor.fetchone()
                 if val and val[0] and idx == 0:
@@ -2946,10 +3014,25 @@ def create_bond(req: BondRequest):
             """, (req.date, main_desc, next_trans_num, user_id, point_no, 1, trans_type_id, first_expenses_id, money_id, account_id))
             for item in items_list:
                 actual_amount = -abs(item.amount) if req.isReceipt else abs(item.amount)
-                sq_cur.execute("""
-                    INSERT OR REPLACE INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no))
+                item_acc_id = 0
+                if item.accountId and int(item.accountId) > 0:
+                    item_acc_id = int(item.accountId)
+                elif item.expensesId in acc_lookup_map and acc_lookup_map[item.expensesId] > 0:
+                    item_acc_id = acc_lookup_map[item.expensesId]
+                elif account_id > 0:
+                    item_acc_id = account_id
+                else:
+                    item_acc_id = int(item.expensesId or 0)
+                try:
+                    sq_cur.execute("""
+                        INSERT OR REPLACE INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no, item_acc_id))
+                except Exception:
+                    sq_cur.execute("""
+                        INSERT OR REPLACE INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, next_trans_num, point_no))
             sq_conn.commit()
             sq_conn.close()
         except Exception:
@@ -2981,11 +3064,24 @@ def update_bond(req: BondEditRequest):
         if req.details and len(req.details) > 0:
             items_list = req.details
         else:
-            items_list = [BondItemDetail(expensesId=req.expensesId or 0, amount=req.amount or 0.0, note=req.note or "")]
+            items_list = [BondItemDetail(expensesId=req.expensesId or 0, amount=req.amount or 0.0, note=req.note or "", accountId=req.accountId or 0)]
+
+        # Account Lookup from tblExpensesList
+        acc_lookup_map = {}
+        try:
+            cursor.execute("SELECT fldID, fldAccID FROM tblExpensesList")
+            for arow in cursor.fetchall():
+                if arow[0] is not None and arow[1] is not None:
+                    acc_lookup_map[int(arow[0])] = int(arow[1])
+        except Exception:
+            pass
 
         first_expenses_id = items_list[0].expensesId if items_list else account_id
-        if account_id == 0:
-            account_id = first_expenses_id
+        if account_id == 0 or account_id == first_expenses_id:
+            if first_expenses_id in acc_lookup_map and acc_lookup_map[first_expenses_id] > 0:
+                account_id = acc_lookup_map[first_expenses_id]
+            elif first_expenses_id > 0:
+                account_id = first_expenses_id
         main_desc = req.note or (items_list[0].note if items_list else "")
 
         # 1. Update Main Header
@@ -3001,24 +3097,41 @@ def update_bond(req: BondEditRequest):
         elif req.id and req.id > 0:
             cursor.execute("DELETE FROM tblExpenses WHERE fldID = ?", (req.id,))
 
-        # 3. Re-insert items into tblExpenses
+        # 3. Re-insert items into tblExpenses with fldAccID
         for item in items_list:
             actual_amount = -abs(item.amount) if req.isReceipt else abs(item.amount)
             cursor.execute("SELECT COALESCE(MAX(fldID), 0) FROM tblExpenses")
             next_exp_id = int(cursor.fetchval() + 1)
 
+            item_acc_id = 0
+            if item.accountId and int(item.accountId) > 0:
+                item_acc_id = int(item.accountId)
+            elif item.expensesId in acc_lookup_map and acc_lookup_map[item.expensesId] > 0:
+                item_acc_id = acc_lookup_map[item.expensesId]
+            elif account_id > 0:
+                item_acc_id = account_id
+            else:
+                item_acc_id = int(item.expensesId or 0)
+
             try:
                 cursor.execute(
-                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldID) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, req.transNumber, point_no, next_exp_id)
+                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldID, fldAccID) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, req.transNumber, point_no, next_exp_id, item_acc_id)
                 )
             except Exception:
-                cursor.execute(
-                    "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, req.transNumber, point_no)
-                )
+                try:
+                    cursor.execute(
+                        "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, req.transNumber, point_no, item_acc_id)
+                    )
+                except Exception:
+                    cursor.execute(
+                        "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (item.expensesId, actual_amount, item.note or main_desc, trans_type_id, req.date, req.transNumber, point_no)
+                    )
 
         conn.commit()
         return {"status": "success", "message": "تم تعديل السند متعدد البنود بنجاح"}
@@ -3099,25 +3212,42 @@ def upload_bonds():
 
         # Upload to tblExpenses
         if "tblexpenses" in remote_tables:
+            exp_acc_map = {}
+            try:
+                cursor_local.execute("SELECT fldID, fldAccID FROM tblExpensesList")
+                for erow in cursor_local.fetchall():
+                    if erow[0] is not None and erow[1] is not None:
+                        exp_acc_map[int(erow[0])] = int(erow[1])
+            except Exception:
+                pass
+
             cursor_local.execute(
-                "SELECT fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO "
+                "SELECT fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO, COALESCE(fldAccID, 0) "
                 "FROM tblExpenses"
             )
             bonds_exp = cursor_local.fetchall()
             for be in bonds_exp:
-                fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO = be
+                fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID = be
+                if not fldAccID or int(fldAccID) == 0:
+                    fldAccID = exp_acc_map.get(int(fldExpensesID or 0), int(fldExpensesID or 0))
                 cursor_remote.execute("SELECT 1 FROM tblExpenses WHERE fldDate = ? AND fldAmount = ? AND fldNote = ?", (fldDate, fldAmount, fldNote))
                 if not cursor_remote.fetchone():
                     try:
                         cursor_remote.execute(
-                            "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO or selected_point_no)
+                            "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldTransNumber, fldPointNO or selected_point_no, fldAccID)
                         )
                     except Exception:
-                        cursor_remote.execute(
-                            "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO or selected_point_no)
-                        )
+                        try:
+                            cursor_remote.execute(
+                                "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO, fldAccID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO or selected_point_no, fldAccID)
+                            )
+                        except Exception:
+                            cursor_remote.execute(
+                                "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (fldExpensesID, fldAmount, fldNote, fldTransID, fldDate, fldTransNumber, fldPointNO or selected_point_no)
+                            )
                     uploaded_count += 1
 
         conn_remote.commit()
@@ -5619,7 +5749,16 @@ def upload_transactions():
                 pass
 
         # --- UPLOAD BONDS (tblExpenses) ---
-        cursor_local.execute("SELECT fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate FROM tblExpenses")
+        exp_acc_map = {}
+        try:
+            cursor_local.execute("SELECT fldID, fldAccID FROM tblExpensesList")
+            for erow in cursor_local.fetchall():
+                if erow[0] is not None and erow[1] is not None:
+                    exp_acc_map[int(erow[0])] = int(erow[1])
+        except Exception:
+            pass
+
+        cursor_local.execute("SELECT fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, COALESCE(fldAccID, 0) FROM tblExpenses")
         local_bonds = cursor_local.fetchall()
         
         has_remote_expenses = "tblexpenses" in remote_tables
@@ -5632,18 +5771,28 @@ def upload_transactions():
             fldID = int(bond[3] or 1)
             fldTransID = int(bond[4] or 11) # 10 = Receipt, 11 = Payment
             fldDate = str(bond[5])
+            fldAccID = int(bond[6] or 0)
+            if fldAccID == 0:
+                fldAccID = exp_acc_map.get(fldExpensesID, fldExpensesID)
             
             if has_remote_expenses:
                 cursor_remote.execute("SELECT fldExpensesID FROM tblExpenses WHERE fldDate = ? AND fldAmount = ? AND fldNote = ?", (fldDate, fldAmount, fldNote))
                 exists = cursor_remote.fetchone()
                 if not exists:
-                    # Check if remote tblExpenses table has fldPointNO column
+                    # Check if remote tblExpenses table has fldPointNO and fldAccID columns
                     cursor_remote.execute(
-                        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'tblExpenses' AND COLUMN_NAME = 'fldPointNO'"
+                        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'tblExpenses' AND COLUMN_NAME IN ('fldPointNO', 'fldAccID')"
                     )
-                    has_point_col = cursor_remote.fetchone() is not None
+                    cols_present = [r[0].lower() for r in cursor_remote.fetchall()]
+                    has_point_col = "fldpointno" in cols_present
+                    has_acc_col = "fldaccid" in cols_present
                     
-                    if has_point_col:
+                    if has_point_col and has_acc_col:
+                        cursor_remote.execute(
+                            "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldPointNO, fldAccID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, selected_point_no, fldAccID)
+                        )
+                    elif has_point_col:
                         cursor_remote.execute(
                             "INSERT INTO tblExpenses (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, fldPointNO) VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (fldExpensesID, fldAmount, fldNote, fldID, fldTransID, fldDate, selected_point_no)
@@ -5663,6 +5812,7 @@ def upload_transactions():
                     # 1. First insert header in tblTransAction for this bond
                     cursor_remote.execute("SELECT COALESCE(MAX(fldID), 0) FROM tblTransAction")
                     remote_trans_id = int(cursor_remote.fetchone()[0] + 1)
+                    target_acc = fldAccID if fldAccID > 0 else fldExpensesID
                     
                     cursor_remote.execute(
                         """
@@ -5683,7 +5833,7 @@ def upload_transactions():
                             fldDate,
                             fldDate,
                             f"ترحيل آلي لسند - {fldNote}",
-                            local_money_id,
+                            target_acc,
                             local_money_id,
                             local_money_value,
                             abs(fldAmount),
@@ -5696,9 +5846,9 @@ def upload_transactions():
                     # Determine Debit/Credit accounts for bond double entry
                     if fldTransID == 10: # Receipt Bond (Qabd)
                         debit_acc = 1 # Cash Account
-                        credit_acc = fldExpensesID
+                        credit_acc = target_acc
                     else: # Payment Bond (Sarf)
-                        debit_acc = fldExpensesID
+                        debit_acc = target_acc
                         credit_acc = 1 # Cash Account
                         
                     debit_val = abs(fldAmount)

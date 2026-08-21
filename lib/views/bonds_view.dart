@@ -165,6 +165,7 @@ class _BondsViewState extends State<BondsView> {
           expensesName: bondToEdit.expensesName,
           amount: bondToEdit.amount,
           note: bondToEdit.note,
+          accountId: bondToEdit.accountId,
         ));
       }
     } else {
@@ -513,6 +514,7 @@ class _BondsViewState extends State<BondsView> {
                                             expensesName: _lineAccount!.name,
                                             amount: amt,
                                             note: _lineNoteController.text.trim(),
+                                            accountId: _lineAccount!.accId,
                                           ));
                                           _lineAmountController.clear();
                                           _lineNoteController.clear();
@@ -636,7 +638,9 @@ class _BondsViewState extends State<BondsView> {
                       try {
                         final mainNote = _mainNoteController.text.trim();
                         final dateVal = _dateController.text.trim();
-                        final firstExpId = _bondLines.first.expensesId;
+                        final firstLine = _bondLines.first;
+                        final firstExpId = firstLine.expensesId;
+                        final firstAccId = firstLine.accountId > 0 ? firstLine.accountId : firstExpId;
 
                         final selectedMoneyId = dialogCurrency?.id ?? apiService.defaultMoneyId;
                         if (isEditing) {
@@ -650,7 +654,7 @@ class _BondsViewState extends State<BondsView> {
                             pointNo: _dialogPointNo,
                             bondDate: dateVal,
                             moneyId: selectedMoneyId,
-                            accountId: firstExpId,
+                            accountId: firstAccId,
                             details: _bondLines,
                           );
                         } else {
@@ -662,7 +666,7 @@ class _BondsViewState extends State<BondsView> {
                             pointNo: _dialogPointNo,
                             bondDate: dateVal,
                             moneyId: selectedMoneyId,
-                            accountId: firstExpId,
+                            accountId: firstAccId,
                             details: _bondLines,
                           );
                         }
@@ -863,66 +867,34 @@ class _BondsViewState extends State<BondsView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'إدارة واستعلامات السندات المالية متعددة البنود (Main & tblExpenses)',
-                        style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
-                      ),
-                      Text(
-                        'إصدار سندات متعددة العمليات والحسابات، استعلام بالفترة الزمنية، تعديل، وترحيل السندات لقاعدة البيانات الرئيسية (نقطة البيع: ${apiService.pointNo})',
-                        style: const TextStyle(color: Colors.white54, fontSize: 13, fontFamily: 'Cairo'),
-                      ),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'استعلامات السندات المالية متعددة البنود',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                        ),
+                        Text(
+                          'إصدار واستعلامات السندات بالفترة الزمنية والحسابات (نقطة البيع: ${apiService.pointNo})',
+                          style: const TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Cairo'),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
 
-                  // Action Buttons Row
-                  Row(
-                    children: [
-                      // Post / Transfer Bonds Button
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: _isUploadingBonds
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.cloud_upload_rounded),
-                        label: const Text('ترحيل السندات للسيرفر الرئيسي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-                        onPressed: _isUploadingBonds || !apiService.isConnected ? null : _handlePostBondsToRemote,
-                      ),
-                      const SizedBox(width: 12),
-
-                      // Edit Selected Bond Button
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedBond != null ? Colors.amber[700] : Colors.white12,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.edit_note_rounded),
-                        label: const Text('تعديل السند', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-                        onPressed: _selectedBond != null ? () => _showBondFormDialog(bondToEdit: _selectedBond) : null,
-                      ),
-                      const SizedBox(width: 12),
-
-                      // New Bond Button
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.note_add_outlined),
-                        label: const Text('إنشاء سند جديد متعدد البنود', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-                        onPressed: () => _showBondFormDialog(),
-                      ),
-                    ],
+                  // New Bond Button Only
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.note_add_outlined, size: 18),
+                    label: const Text('إنشاء سند جديد متعدد البنود', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 12)),
+                    onPressed: () => _showBondFormDialog(),
                   ),
                 ],
               ),

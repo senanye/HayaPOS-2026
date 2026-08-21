@@ -3,12 +3,14 @@ class BondItemModel {
   String expensesName;
   double amount;
   String note;
+  int accountId;
 
   BondItemModel({
     required this.expensesId,
     required this.expensesName,
     required this.amount,
     required this.note,
+    this.accountId = 0,
   });
 
   factory BondItemModel.fromJson(Map<String, dynamic> json) {
@@ -17,6 +19,7 @@ class BondItemModel {
       expensesName: json['expensesName'] ?? '',
       amount: (json['amount'] ?? 0.0).toDouble(),
       note: json['note'] ?? '',
+      accountId: json['accountId'] ?? (json['accId'] ?? 0),
     );
   }
 
@@ -24,6 +27,7 @@ class BondItemModel {
     'expensesId': expensesId,
     'amount': amount,
     'note': note,
+    'accountId': accountId,
   };
 }
 

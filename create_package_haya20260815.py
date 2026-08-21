@@ -4,7 +4,7 @@ import shutil
 import json
 
 root_dir = r"d:\AndroidStudio\POS2026"
-pkg_name = "الاميره260818"
+pkg_name = "هيا21082026"
 zip_output = os.path.join(root_dir, f"{pkg_name}.zip")
 folder_output = os.path.join(root_dir, pkg_name)
 
@@ -12,11 +12,11 @@ print(f"1. Preparing Package: {pkg_name}...")
 
 bat_content = """@echo off
 chcp 65001 > nul
-title نظام الأميرة لنقاط البيع - إصدار 20260818
+title نظام هيا لنقاط البيع - إصدار 21082026
 color 0B
 echo ======================================================================
-echo                نظام الأميرة لنقاط البيع - إصدار 20260818
-echo              Al-Ameera POS System - Release 20260818
+echo                نظام هيا لنقاط البيع - إصدار 21082026
+echo                Haya POS System - Release 21082026
 echo                    الحقوق محفوظة م. علي سنان
 echo ======================================================================
 echo.
@@ -100,10 +100,10 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/3] جاري تشغيل خادم البيانات والـ API على المنفذ 9000...
-start "Al-Ameera 20260818 API Server" /min "%PYTHON_EXE%" server/server.py
+start "Haya POS 21082026 API Server" /min "%PYTHON_EXE%" server/server.py
 
 echo [3/3] جاري تشغيل خادم واجهة الويب على المنفذ 8888...
-start "Al-Ameera 20260818 Web Server" /min "%PYTHON_EXE%" -m http.server 8888 --directory web
+start "Haya POS 21082026 Web Server" /min "%PYTHON_EXE%" -m http.server 8888 --directory web
 
 ping -n 3 127.0.0.1 >nul
 
@@ -113,7 +113,7 @@ start http://localhost:8888
 
 echo.
 echo ======================================================================
-echo  تم تشغيل نظام الأميرة 20260818 بنجاح!
+echo  تم تشغيل نظام هيا 21082026 بنجاح!
 echo  الرابط في المتصفح: http://localhost:8888
 echo  الحقوق محفوظة م. علي سنان
 echo  يرجى ابقاء هذه النوافذ مفتوحة طوال فترة عملك على النظام
@@ -122,11 +122,11 @@ echo.
 pause
 """
 
-readme_content = """نظام الأميرة لنقاط البيع (Al-Ameera POS) - إصدار 20260818
+readme_content = """نظام هيا لنقاط البيع (Haya POS) - إصدار 21082026
 الحقوق محفوظة م. علي سنان
 ======================================================
 طريقة التشغيل على جهاز العميل:
-1. انقر نقراً مزدوجاً على ملف "تشغيل_النظام.bat" أو "تشغيل_تطبيق_الاميره260818.bat".
+1. انقر نقراً مزدوجاً على ملف "تشغيل_النظام.bat" أو "تشغيل_تطبيق_هيا21082026.bat".
 2. يقوم الملف الذكي بالتحقق التلقائي من بيئة بايثون المدمجة وتشغيل الخوادم وفتح المتصفح تلقائياً على الرابط:
    http://localhost:8888
 
@@ -134,25 +134,27 @@ readme_content = """نظام الأميرة لنقاط البيع (Al-Ameera POS
 - لتعديل اسم خادم SQL Server أو اسم قاعدة البيانات أو اسم المستخدم وكلمة المرور:
   افتح ملف "server_config.json" وقم بتعديل البيانات التالية حسب جهازك:
   {
-    "server": "S1\\SQLEXPRESS",
-    "remote_server": "S1\\SQLEXPRESS",
+    "server": "SENANSERVER\\SQLEXPRESS",
+    "remote_server": "SENANSERVER\\SQLEXPRESS",
     "local_db": "sp",
     "remote_db": "sp",
     "username": "sa",
     "password": "as",
     "port": "",
-    "point_no": 1,
-    "point_name": "الرئيسية"
+    "point_no": 71,
+    "point_name": "هيا",
+    "version_check_url": "https://raw.githubusercontent.com/senanye/HayaPOS-2026/main/version.json"
   }
 
-أهم التحديثات والإصلاحات المضمنة في إصدار 20260818:
+أهم التحديثات والإصلاحات المضمنة في إصدار 21082026:
 ------------------------------------------------------
-1. دعم بيئة بايثون المحمولة المدمجة بالكامل ليعمل التطبيق مباشرة دون أي تثبيتات إضافية.
-2. التوافق التلقائي والكامل مع كافة مشغلات ODBC بما فيها ODBC Driver 18 و 17 و Native Client.
-3. التحرير الذاتي للمنافذ 9000 و 8888 عند إعادة التشغيل لتفادي أي تعارض.
-4. نظام التحديث التلقائي الفوري بضغطة زر واحدة (1-Click Auto Update).
-5. تصميم فواتير المبيعات والمردودات الحرارية 100% متطابق مع النموذج المعتمد.
-6. استوديو وطباعة ملصقات الباركود والطباعة المباشرة دون نوافذ معلقة.
+1. تقرير الإحصائية والحركة المالية واليومية الشاملة (كشف الصندوق اليومي من تاريخ إلى تاريخ) مع طباعة وتصدير PDF وإرسال واتساب.
+2. تثبيت وحفظ خيار الحفظ مع الطباعة أو الحفظ بدون طباعة على آخر اختيار للمستخدم تلقائياً.
+3. إمكانية اختيار وتخصيص اللوجو المطبوع في الفاتورة من ملف صورة يتم اختياره من قبل المستخدم وحفظه في النظام.
+4. نظام التحديث الأونلاين التلقائي المباشر عبر مستودع GitHub بضغطة زر واحدة لجميع نقاط البيع.
+5. استوديو وطباعة ملصقات الباركود والطباعة الحرارية والتوافق التام مع كافة مقاسات الورق.
+6. دعم بيئة بايثون المحمولة المدمجة للتشغيل المباشر لدى العميل دون تثبيت.
+7. التحرير الذاتي للمنافذ 9000 و 8888 عند إعادة التشغيل لتفادي أي تعارض.
 """
 
 # Create standalone folder as well
@@ -170,7 +172,7 @@ server_src = os.path.join(root_dir, "server")
 server_dst = os.path.join(folder_output, "server")
 if os.path.exists(server_dst):
     shutil.rmtree(server_dst, ignore_errors=True)
-shutil.copytree(server_src, server_dst, ignore=shutil.ignore_patterns('*.pyc', '__pycache__', '*.db-journal'))
+shutil.copytree(server_src, server_dst, ignore=shutil.ignore_patterns('*.pyc', '__pycache__', '*.db-journal', 'node_modules', 'wa_auth'))
 
 # Copy python_env if exists in root
 py_src = os.path.join(root_dir, "python_env")
@@ -180,15 +182,17 @@ if os.path.exists(py_src) and not os.path.exists(py_dst):
 
 # Write clean server_config.json
 server_cfg_data = {
-  "server": "S1\\SQLEXPRESS",
-  "remote_server": "S1\\SQLEXPRESS",
+  "server": "SENANSERVER\\SQLEXPRESS",
+  "remote_server": "SENANSERVER\\SQLEXPRESS",
   "local_db": "sp",
   "remote_db": "sp",
   "username": "sa",
   "password": "as",
   "port": "",
-  "point_no": 1,
-  "point_name": "الرئيسية"
+  "point_no": 71,
+  "point_name": "هيا",
+  "logo_base64": "",
+  "version_check_url": "https://raw.githubusercontent.com/senanye/HayaPOS-2026/main/version.json"
 }
 with open(os.path.join(folder_output, "server_config.json"), "w", encoding="utf-8") as f:
     json.dump(server_cfg_data, f, indent=2, ensure_ascii=False)
@@ -196,18 +200,22 @@ with open(os.path.join(folder_output, "server_config.json"), "w", encoding="utf-
 # Write clean version.json
 version_data = {
   "version": "1.0.2",
-  "build_date": "2026-08-18",
-  "app_name": "نظام الأميرة لنقاط البيع",
+  "build_date": "2026-08-21",
+  "app_name": "نظام هيا لنقاط البيع",
   "engineer": "م. علي سنان",
   "min_required_version": "1.0.0",
+  "update_url": "https://raw.githubusercontent.com/senanye/HayaPOS-2026/main/update_latest.zip",
+  "github_repo": "https://github.com/senanye/HayaPOS-2026",
   "changelog": [
-    "التوافق الكامل مع جميع مشغلات ODBC الرسمية (ODBC Driver 18, 17, Native Client)",
+    "إضافة تقرير الإحصائية والحركة المالية واليومية الشاملة (كشف الصندوق اليومي)",
+    "إمكانية طباعة وتصدير التقرير المالي اليومي وتحويله إلى PDF وإرساله عبر الواتساب",
+    "حفظ وتثبيت خيار الطباعة التلقائية بحسب تفضيل المستخدم الأخير",
+    "إمكانية تخصيص وتحميل شعار (لوجو) الفواتير المطبوعة من ملف صورة",
+    "تفعيل فحص وتحديث النسخة أونلاين بضغطة زر واحدة لجميع نقاط البيع",
     "دعم بيئة بايثون المحمولة المدمجة للتشغيل المباشر لدى العميل دون تثبيت",
-    "التحرير التلقائي للمنافذ وإعادة التشغيل السلس دون تعليق",
-    "تصميم فواتير المبيعات والمردودات الحرارية 100% متطابق مع النموذج المعتمد",
-    "إصلاح ودعم الطباعة المباشرة والحرارية في كافة المتصفحات دون حظر",
-    "إضافة حقوق الملكية (م. علي سنان) وتاريخ الإصدار في شاشة تسجيل الدخول"
-  ]
+    "التحرير التلقائي للمنافذ وإعادة التشغيل السلس دون تعليق"
+  ],
+  "is_mandatory": False
 }
 with open(os.path.join(folder_output, "version.json"), "w", encoding="utf-8") as f:
     json.dump(version_data, f, indent=2, ensure_ascii=False)
