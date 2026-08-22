@@ -1237,26 +1237,6 @@ class _DashboardOverviewState extends State<DashboardOverview> {
               // Top Action Buttons
               Row(
                 children: [
-                  // Check and Apply Online Update Button
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: widget.isCheckingUpdate
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.rocket_launch_rounded, size: 20),
-                    label: const Text('تحديث النسخة أونلاين 🚀', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-                    onPressed: widget.isCheckingUpdate ? null : widget.onCheckUpdate,
-                  ),
-                  const SizedBox(width: 10),
-
                   // Refresh Data / Sync Items Button
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(

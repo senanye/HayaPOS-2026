@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:universal_html/js.dart' as js;
 import '../services/api_service.dart';
 import '../models/user.dart';
 import 'main_shell.dart';
@@ -24,6 +26,11 @@ class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   bool _isSyncingUsers = false;
+
+  bool _isCheckingUpdate = false;
+  bool _hasUpdate = false;
+  String _latestVersion = '';
+  Map<String, dynamic>? _updateInfo;
 
   bool _isSpecialLogin = false;
   bool _isSpecialLoginUnlocked = false;
@@ -200,6 +207,215 @@ class _LoginViewState extends State<LoginView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadRemotePoints();
     });
+  }
+
+  // ==========================================================
+  //          وظائف التحديث الأونلاين التلقائي (Auto Update)
+  // ==========================================================
+
+  Future<void> _checkSystemUpdate({bool manual = false}) async {
+    if (_isCheckingUpdate) return;
+    setState(() => _isCheckingUpdate = true);
+
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final res = await apiService.checkSystemUpdate();
+      
+      if (mounted) {
+        setState(() {
+          _isCheckingUpdate = false;
+          _hasUpdate = res['has_update'] == true;
+          _latestVersion = res['latest_version'] ?? '';
+          _updateInfo = res;
+        });
+
+        if (manual) {
+          if (_hasUpdate) {
+            _showUpdateDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  res['message'] ?? 'نظامك محدث إلى آخر إصدار.',
+                  style: const TextStyle(fontFamily: 'Cairo'),
+                ),
+                backgroundColor: Colors.green.shade700,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else if (_hasUpdate) {
+          _showUpdateDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCheckingUpdate = false);
+        if (manual) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('خطأ أثناء فحص التحديثات: $e', style: const TextStyle(fontFamily: 'Cairo')),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showUpdateDialog() {
+    if (_updateInfo == null) return;
+    final changelog = _updateInfo?['changelog'] as List<dynamic>? ?? [];
+    final latestVer = _latestVersion;
+    final currentVer = _updateInfo?['current_version'] ?? '1.0.0';
+    final isMandatory = _updateInfo?['is_mandatory'] == true;
+    bool isUpdating = false;
+    String updateStatusText = '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: !isMandatory,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            backgroundColor: const Color(0xFF1E232D),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.rocket_launch_rounded, color: Colors.amber, size: 26),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'يوجد تحديث جديد متاح للنظام',
+                        style: TextStyle(fontFamily: 'Cairo', fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        'الإصدار الحالي: $currentVer  ←  الإصدار الجديد: $latestVer',
+                        style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.blueAccent.shade100),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 480,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(color: Colors.white12),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'أبرز التحسينات والمميزات الجديدة:',
+                    style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  if (changelog.isNotEmpty)
+                    ...changelog.map((log) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  log.toString(),
+                                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))
+                  else
+                    const Text('تحسينات عامة واستقرار للنظام.', style: TextStyle(fontFamily: 'Cairo', color: Colors.white)),
+                  const SizedBox(height: 12),
+                  if (isUpdating) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(backgroundColor: Colors.white10, color: Colors.greenAccent.shade400),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Text(
+                        updateStatusText.isNotEmpty ? updateStatusText : 'جاري تحميل التحديث وتثبيته... يرجى الانتظار',
+                        style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.amberAccent),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              if (!isMandatory && !isUpdating)
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('تذكيري لاحقاً', style: TextStyle(fontFamily: 'Cairo', color: Colors.white54)),
+                ),
+              if (!isUpdating)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.download_for_offline_rounded, color: Colors.white, size: 18),
+                  label: const Text('تحديث النظام الآن (1-Click)', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    setDialogState(() {
+                      isUpdating = true;
+                      updateStatusText = 'جاري الاتصال بـ GitHub وتنزيل التحديث...';
+                    });
+                    
+                    final apiService = Provider.of<ApiService>(context, listen: false);
+                    final updateRes = await apiService.applySystemUpdate(
+                      updateUrl: _updateInfo?['update_url'],
+                    );
+
+                    if (updateRes['status'] == 'success') {
+                      setDialogState(() {
+                        updateStatusText = 'تم تثبيت التحديث بنجاح! جاري إعادة تشغيل الواجهة...';
+                      });
+                      await Future.delayed(const Duration(seconds: 2));
+                      if (kIsWeb) {
+                        try {
+                          js.context['location'].callMethod('reload', []);
+                        } catch (_) {}
+                      }
+                      if (mounted) Navigator.pop(dialogCtx);
+                    } else {
+                      setDialogState(() {
+                        isUpdating = false;
+                        updateStatusText = '';
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(updateRes['message'] ?? 'فشل التحديث', style: const TextStyle(fontFamily: 'Cairo')),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _selectDate(BuildContext context, ApiService apiService) async {
@@ -1326,13 +1542,36 @@ class _LoginViewState extends State<LoginView> {
             ),
           ),
           
-          // Settings button in top corner
+          // Settings and Online Update buttons in top corner
           Positioned(
-            top: 40,
+            top: 35,
             left: 20,
-            child: IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white70, size: 28),
-              onPressed: () => _showSettingsSecurityCheck(context),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.white70, size: 28),
+                  tooltip: 'إعدادات الاتصال وقاعدة البيانات',
+                  onPressed: () => _showSettingsSecurityCheck(context),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: _isCheckingUpdate
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.rocket_launch_rounded, size: 18),
+                  label: const Text('تحديث النسخة أونلاين 🚀', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 12)),
+                  onPressed: _isCheckingUpdate ? null : () => _checkSystemUpdate(manual: true),
+                ),
+              ],
             ),
           ),
 
@@ -1408,13 +1647,45 @@ class _LoginViewState extends State<LoginView> {
                               letterSpacing: 1.2,
                             ),
                           ),
-                          Text(
-                            'اصدار النسخه بتاريخ: ' + DateFormat('dd-MM-yyyy').format(DateTime.now()),
-                            style: const TextStyle(
+                          const Text(
+                            'إصدار النسخة: 2026-08-20',
+                            style: TextStyle(
                               color: Color(0xFF7CB342),
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               fontFamily: 'Cairo',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Online Update Action Chip in Card
+                          InkWell(
+                            onTap: _isCheckingUpdate ? null : () => _checkSystemUpdate(manual: true),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _isCheckingUpdate
+                                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF34D399)))
+                                      : const Icon(Icons.cloud_sync_rounded, size: 16, color: Color(0xFF34D399)),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    'فحص وتحديث النسخة أونلاين 🚀',
+                                    style: TextStyle(
+                                      color: Color(0xFF34D399),
+                                      fontFamily: 'Cairo',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
