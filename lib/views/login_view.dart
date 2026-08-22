@@ -1752,7 +1752,7 @@ class _LoginViewState extends State<LoginView> {
                                     const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF7CB342)),
                                     const SizedBox(width: 8),
                                     Text(
-                                      'الإصدار: ' + DateFormat('dd / MM / yyyy').format(DateTime.now()),
+                                      const String.fromEnvironment('APP_VERSION', defaultValue: 'إصدار النسخة: 2026-08-20'),
                                       style: const TextStyle(
                                         color: Color(0xFF9CCC65),
                                         fontFamily: 'Cairo',
@@ -1799,9 +1799,9 @@ class _LoginViewState extends State<LoginView> {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      'الإصدار: ' + DateFormat('dd / MM / yyyy').format(DateTime.now()),
-                      style: const TextStyle(
+                    const Text(
+                      'إصدار النسخة: 2026-08-20',
+                      style: TextStyle(
                         color: Color(0xFF9CCC65),
                         fontFamily: 'Cairo',
                         fontSize: 11.5,
