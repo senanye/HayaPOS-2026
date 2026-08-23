@@ -1,11 +1,11 @@
 {
-    "name": "hayapos_app",
-    "short_name": "hayapos_app",
+    "name": "نظام هيا لنقاط البيع",
+    "short_name": "هيا POS",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#140712",
+    "theme_color": "#9C0E62",
+    "description": "نظام هيا لنقاط البيع",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

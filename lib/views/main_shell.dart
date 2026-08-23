@@ -665,7 +665,7 @@ class _MainShellState extends State<MainShell> {
                                   Icon(Icons.storefront_rounded, color: Color(0xFFC2185B), size: 26),
                                   SizedBox(width: 8),
                                   Text(
-                                    'الأميرة لنقاط البيع',
+                                    'نظام هيا لنقاط البيع',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,

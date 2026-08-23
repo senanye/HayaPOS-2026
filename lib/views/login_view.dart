@@ -1639,10 +1639,10 @@ class _LoginViewState extends State<LoginView> {
                           ),
                           const SizedBox(height: 14),
                           const Text(
-                            'نظام هيا',
+                            'نظام هيا لنقاط البيع',
                             style: TextStyle(
                               color: Color(0xFFFDF2F8),
-                              fontSize: 26,
+                              fontSize: 24,
                               fontWeight: FontWeight.w900,
                               fontFamily: 'Cairo',
                               letterSpacing: 1.2,
