@@ -202,10 +202,11 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    _isSpecialLogin = true;
-    _isSpecialLoginUnlocked = true;
+    _isSpecialLogin = false;
+    _isSpecialLoginUnlocked = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadRemotePoints();
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      apiService.fetchUsers();
     });
   }
 

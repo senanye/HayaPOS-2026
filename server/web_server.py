@@ -1,5 +1,4 @@
 import http.server
-import socketserver
 import os
 import sys
 
@@ -23,6 +22,16 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         super().end_headers()
 
+    def copyfile(self, source, outputfile):
+        try:
+            super().copyfile(source, outputfile)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
+    def log_message(self, format, *args):
+        # Concise logging
+        sys.stderr.write(f"[{self.log_date_time_string()}] {format % args}\n")
+
 if __name__ == '__main__':
     port = PORT
     if len(sys.argv) > 1:
@@ -31,12 +40,12 @@ if __name__ == '__main__':
         except ValueError:
             pass
 
-    print(f"Starting No-Cache Web Server on port {port}...")
+    print(f"Starting Multi-threaded No-Cache Web Server on port {port}...")
     print(f"Serving directory: {DIRECTORY}")
 
-    socketserver.TCPServer.allow_reuse_address = True
+    http.server.ThreadingHTTPServer.allow_reuse_address = True
     try:
-        with socketserver.TCPServer(("0.0.0.0", port), NoCacheHTTPRequestHandler) as httpd:
+        with http.server.ThreadingHTTPServer(("0.0.0.0", port), NoCacheHTTPRequestHandler) as httpd:
             print(f"Web server is ready at http://localhost:{port}")
             httpd.serve_forever()
     except KeyboardInterrupt:
