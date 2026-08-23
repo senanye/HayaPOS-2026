@@ -1657,36 +1657,48 @@ class _LoginViewState extends State<LoginView> {
                               fontFamily: 'Cairo',
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          // Online Update Action Chip in Card
-                          InkWell(
-                            onTap: _isCheckingUpdate ? null : () => _checkSystemUpdate(manual: true),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                          const SizedBox(height: 12),
+                          // Prominent Online Update Button in Card
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF059669), Color(0xFF10B981)],
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _isCheckingUpdate
-                                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF34D399)))
-                                      : const Icon(Icons.cloud_sync_rounded, size: 16, color: Color(0xFF34D399)),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'فحص وتحديث النسخة أونلاين 🚀',
-                                    style: TextStyle(
-                                      color: Color(0xFF34D399),
-                                      fontFamily: 'Cairo',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
+                              icon: _isCheckingUpdate
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Icon(Icons.rocket_launch_rounded, size: 20, color: Colors.amberAccent),
+                              label: Text(
+                                _isCheckingUpdate ? 'جاري فحص وتنزيل التحديث...' : 'تحديث النسخة أونلاين 🚀 (التحديث التلقائي)',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: 'Cairo',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              onPressed: _isCheckingUpdate ? null : () => _checkSystemUpdate(manual: true),
                             ),
                           ),
                           const SizedBox(height: 16),

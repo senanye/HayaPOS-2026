@@ -959,59 +959,6 @@ class _MainShellState extends State<MainShell> {
             ),
           ),
 
-          // Update Notification & Status Badge
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            child: _hasUpdate
-                ? InkWell(
-                    onTap: _showUpdateDialog,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.amber.withOpacity(0.4),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          )
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 14),
-                          const SizedBox(width: 6),
-                          Text(
-                            'تحديث متاح v$_latestVersion',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontFamily: 'Cairo',
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : IconButton(
-                    icon: _isCheckingUpdate
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white60),
-                          )
-                        : const Icon(Icons.cloud_sync_rounded, color: Colors.white54, size: 18),
-                    tooltip: 'فحص التحديثات أونلاين',
-                    onPressed: () => _checkSystemUpdate(manual: true),
-                  ),
-          ),
-
           // Workspace Tab Controls (Count & Menu)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1047,21 +994,9 @@ class _MainShellState extends State<MainShell> {
                       _closeOtherTabs(_activeTabIndex);
                     } else if (val == 'close_all') {
                       _closeAllTabs();
-                    } else if (val == 'check_update') {
-                      _checkSystemUpdate(manual: true);
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'check_update',
-                      child: Row(
-                        children: [
-                          Icon(Icons.system_update_rounded, color: Colors.greenAccent, size: 18),
-                          SizedBox(width: 8),
-                          Text('فحص التحديثات الجديدة', style: TextStyle(color: Colors.white, fontFamily: 'Cairo', fontSize: 13)),
-                        ],
-                      ),
-                    ),
                     const PopupMenuItem(
                       value: 'close_others',
                       child: Row(
