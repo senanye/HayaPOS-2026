@@ -1,13 +1,13 @@
 {
-  "version": "4",
-  "build_date": "2026-08-22 12:49",
+  "version": "1",
+  "build_date": "2026-08-24 20:45",
   "app_name": "نظام هيا لنقاط البيع",
   "engineer": "م. علي سنان",
   "min_required_version": "1.0.0",
   "update_url": "https://raw.githubusercontent.com/senanye/HayaPOS-2026/main/update_latest.zip",
   "github_repo": "https://github.com/senanye/HayaPOS-2026",
   "changelog": [
-    "1"
+    "2"
   ],
   "is_mandatory": false
 }

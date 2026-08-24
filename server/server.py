@@ -1949,8 +1949,8 @@ def create_transaction(req: TransactionRequest):
             """, (req.date, req.description, next_trans_num, req.userId, point_no, to_point_no, req.payCash, trans_type, next_trans_id, req.moneyId, status_val, account_id))
             sq_conn.commit()
             sq_conn.close()
-        except Exception:
-            pass
+        except Exception as sq_err:
+            print(f"[SQLite Transaction Sync Error] {sq_err}")
 
         return {
             "status": "success",
@@ -2355,9 +2355,19 @@ def ensure_whatsapp_service_running():
             
         wa_dir = os.path.join(os.path.dirname(__file__), "whatsapp_service")
         if os.path.exists(os.path.join(wa_dir, "server.js")):
-            print("[WhatsApp Launcher] Starting WhatsApp Baileys Engine service on port 9001...")
+            node_bin = "node"
+            root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            local_node = os.path.join(root_dir, "node_portable", "node.exe")
+            nested_node = os.path.join(root_dir, "node_portable", "node-v20.19.2-win-x64", "node.exe")
+            
+            if os.path.exists(local_node):
+                node_bin = local_node
+            elif os.path.exists(nested_node):
+                node_bin = nested_node
+                
+            print(f"[WhatsApp Launcher] Starting WhatsApp Baileys Engine service on port 9001 using: {node_bin}")
             subprocess.Popen(
-                ["node", "server.js"],
+                [node_bin, "server.js"],
                 cwd=wa_dir,
                 creationflags=0x08000000 if os.name == 'nt' else 0
             )
@@ -5547,7 +5557,7 @@ def upload_transactions():
         uploaded_bonds = 0
         
         # --- UPLOAD INVOICES (Main / details) ---
-        cursor_local.execute("SELECT fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldToPointNO FROM Main")
+        cursor_local.execute("SELECT fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldToPointNO, fldAccID FROM Main")
         local_invoices = cursor_local.fetchall()
         
         selected_point_no = db_config.get("point_no", 1)
@@ -5570,6 +5580,7 @@ def upload_transactions():
             fldTransID = int(inv[7] or 1)
             fldMoneyID = int(inv[8] or 1)
             fldToPointNO = int(inv[9]) if inv[9] is not None else None
+            fldAccID = int(inv[10]) if inv[10] is not None else 0
             
             # Fetch local details for this invoice
             ensure_columns_exist(cursor_local)
@@ -5585,8 +5596,8 @@ def upload_transactions():
                 if not exists:
                     # Insert header
                     cursor_remote.execute(
-                        "INSERT INTO Main (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, 0)
+                        "INSERT INTO Main (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus, fldAccID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, 0, fldAccID)
                     )
                     # Insert details
                     for d in local_details:
@@ -6114,17 +6125,17 @@ def transfer_tables():
         cursor_remote.execute(alter_expenses_query)
         
         # 4. Transfer Main data
-        cursor_local.execute("SELECT fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus FROM Main")
+        cursor_local.execute("SELECT fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus, fldAccID FROM Main")
         local_mains = cursor_local.fetchall()
         
         mains_transferred = 0
         for row in local_mains:
-            fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus = row
+            fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus, fldAccID = row
             cursor_remote.execute("SELECT 1 FROM Main WHERE fldTransNumber = ?", (fldTransNumber,))
             if not cursor_remote.fetchone():
                 cursor_remote.execute(
-                    "INSERT INTO Main (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus or 0)
+                    "INSERT INTO Main (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus, fldAccID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (fldDate, fldDescription, fldTransNumber, fldUSerID, fldPointNO, fldToPointNO, fldPaycash, fldType, fldTransID, fldMoneyID, fldStatus or 0, fldAccID or 0)
                 )
                 mains_transferred += 1
                 
@@ -6289,11 +6300,23 @@ def _parse_version(v_str: str):
 
 @app.get("/api/system_version")
 def get_system_version():
+    system_name = "نظام هيا لنقاط البيع"
+    build_date = "2026-08-22"
+    try:
+        for path in ["version.json", "../version.json", os.path.join(os.path.dirname(__file__), "..", "version.json")]:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8-sig") as f:
+                    data = json.load(f)
+                    system_name = data.get("app_name", system_name)
+                    build_date = data.get("build_date", build_date)
+                    break
+    except Exception:
+        pass
     return {
         "status": "success",
-        "system_name": "Al-Ameera POS",
+        "system_name": system_name,
         "version": _get_local_version(),
-        "build_date": "2026-08-18"
+        "build_date": build_date
     }
 
 @app.get("/api/check_update")
